@@ -40,7 +40,7 @@ class LegacyKernelClangBoundary(unittest.TestCase):
             capture_output=True, text=True, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        expected = f"100644 blob {LEGACY_BINARY_SHA}\tbin/clang-12"
+        expected = f"100755 blob {LEGACY_BINARY_SHA}\tbin/clang-12"
         self.assertEqual(result.stdout.strip(), expected)
         history = subprocess.run(
             ["git", "-C", str(ROOT), "merge-base", "--is-ancestor",
