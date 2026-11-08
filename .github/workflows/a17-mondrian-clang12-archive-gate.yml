@@ -1,0 +1,50 @@
+name: AOSP17 PE kernel Clang12 archive ownership gate
+on:
+  push:
+    branches:
+      - audit/a17-mondrian-legacy-clang-toolchain-boundary-20261108
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clang-archive-and-aosp17-owner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Inspect the original toolchain Git OBJECT IDs, but never download
+          # or execute the obsolete 91 MB clang-12 ELF and runtimes in CI.
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: |
+            AndroidVersion.txt
+            BUILD.bazel
+            tests
+            docs
+            .github
+      - name: Verify pinned PE-Reborn official AOSP17 platform manifest
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 --branch port/a17-aosp17-manifest-20261102 \
+            https://github.com/PixelExperience-Reborn/manifest.git "$RUNNER_TEMP/pe-a17-manifest"
+          cd "$RUNNER_TEMP/pe-a17-manifest"
+          test "$(git rev-parse HEAD)" = "0bc0a7fafdf163a9615adfafa7d2191597630d9c"
+          python3 tools/validate_aosp17_base_profiles.py
+          python3 -m unittest discover -s tools -p test_aosp17_manifest_entrypoint.py -v
+          python3 tools/validate_135_repository_matrix.py
+      - name: Verify pinned Soong AOSP17 compiler default and original Clang12 Git metadata
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://raw.githubusercontent.com/PixelExperience-Reborn/build_soong/6215d41c790a463b7795ce81ac77204c238cbf48/cc/config/global.go" \
+            --output "$RUNNER_TEMP/aosp17-soong-global.go"
+          test -s "$RUNNER_TEMP/aosp17-soong-global.go"
+          PE_AOSP17_MANIFEST="$RUNNER_TEMP/pe-a17-manifest/aosp17_reference.xml" \
+          PE_AOSP17_SOONG_GLOBAL="$RUNNER_TEMP/aosp17-soong-global.go" \
+          python3 tests/check_aosp17_legacy_clang_boundary.py
+      - name: Scope
+        run: |
+          echo "Source and metadata checks only; no old clang binary fetched or executed."
+          echo "No AOSP17 Soong build, kernel 5.10 clang compatibility, ABI or mondrian boot implied."
